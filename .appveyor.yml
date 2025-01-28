@@ -1,0 +1,27 @@
+image: Ubuntu2204  # образ для сборки
+
+stack: node 20  # окружение Node.js
+
+branches:
+  only:
+    - main  
+
+cache: node_modules  
+
+install:
+  - npm install  # установка зависимостей
+
+build: off  # отключаем встроенную в AppVeyor систему сборки
+
+build_script:
+  - npm run build   # команда сборки
+
+test_script:
+  - echo "No linting configured"  # пропускаем тесты или линтинг, если не используются
+
+deploy_script:  # скрипт развёртывания
+  - git config --global credential.helper store
+  - git config --global user.name "AppVeyor"
+  - git config --global user.email "ci@appveyor.com"
+  - echo "https://$GITHUB_TOKEN@github.com" > "$HOME/.git-credentials"
+  - npx push-dir --dir=dist --branch=gh-pages --force --verbose --remote="https://$GITHUB_TOKEN@github.com/chernikov-frontend/ahj-homeworks-dnd.git"
