@@ -1,5 +1,6 @@
 import { getData, setData } from "./functions";
 import WidgetList from "./WidgetList";
+
 export default class WidgetForm {
   constructor(container, id) {
     this.container = container;
@@ -14,22 +15,20 @@ export default class WidgetForm {
     const _bntHide = this.container.querySelector(".tasks__btn-hide");
     const _form = this.container.querySelector(".tasks__form");
 
-    _btnShow.addEventListener(
-      "click",
-      this.onToggle.bind(this, _form, _btnShow),
-    );
-    _bntHide.addEventListener(
-      "click",
-      this.onToggle.bind(this, _form, _btnShow),
-    );
+    _btnShow.addEventListener("click", this.onToggle.bind(this, _form, _btnShow));
+    _bntHide.addEventListener("click", this.onToggle.bind(this, _form, _btnShow));
     _form.addEventListener("submit", this.onSubmit);
   }
 
   onSubmit(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const taskText = formData.get("text").trim();
 
-    this.save(formData);
+    if (!taskText) return; // Запрещаем пустые задачи
+
+    this.save(taskText);
+    e.target.reset(); // Очищаем поле ввода
   }
 
   onToggle(_form, _btnShow) {
@@ -37,23 +36,25 @@ export default class WidgetForm {
     _form.classList.toggle("hidden");
   }
 
-  save(formData) {
+  save(text) {
     const data = getData();
     const item = {
       id: Date.now(),
-      text: formData.get("text"),
+      text: text,
     };
-    const widgetList = new WidgetList(this.container);
 
     if (Object.hasOwn(data, this.id)) {
-      item.sort = data[this.id].length + 1;
-      data[this.id].push(item);
+      item.sort = 1;
+      data[this.id].unshift(item); // Добавляем в начало списка
     } else {
       item.sort = 1;
       data[this.id] = [item];
     }
 
     setData(data);
+
+    // Перерисовываем список задач
+    const widgetList = new WidgetList(this.container);
     widgetList.init(this.id);
   }
 

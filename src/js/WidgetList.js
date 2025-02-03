@@ -4,77 +4,119 @@ import { getData, setData } from "./functions";
 export default class WidgetList {
   constructor(container) {
     this.container = container;
+    this.parentId = null;
+    this._targetItem = null;
+    this._elementTmp = null;
 
-    this.clearList();
+    this.onMouseDown = this.onMouseDown.bind(this);
+    this.onMouseMove = this.onMouseMove.bind(this);
+    this.onMouseUp = this.onMouseUp.bind(this);
+    this.removeItem = this.removeItem.bind(this);
   }
 
   init(id) {
     this.parentId = id;
+    this.container.innerHTML = ""; // Очищаем контейнер перед рендером
     const data = getData(id);
     const _element = this.render(data);
     const widgetForm = new WidgetForm(this.container, id);
 
-    this.container.appendChild(_element);
+    this.container.append(_element);
     widgetForm.init();
 
-    const items = this.container.querySelectorAll(".tasks__item");
-    items.forEach((_item) => {
-      const _remove = _item.querySelector(".tasks__btn-remove");
-      _remove.addEventListener("click", this.removeItem.bind(this, _item));
-    });
-
-    const _tasksList = this.container.querySelector(".tasks__list");
-    let _targetItem, _elementTmp;
-
-    const onMouseOver = (e) => {
-      _targetItem.style.top = e.clientY - e.offsetY + "px";
-      _targetItem.style.left = e.clientX - e.offsetX + "px";
-    };
-
-    const onMouseUp = (e) => {
-      let mouseUpItem = e.target.closest(".tasks__item");
-
-      if (mouseUpItem) {
-        const parent = mouseUpItem.closest(".tasks__list");
-        parent.insertBefore(_targetItem, mouseUpItem);
-        this.setData();
-      } else {
-        mouseUpItem = e.target.closest(".tasks__list");
-
-        if (mouseUpItem) {
-          mouseUpItem.appendChild(_targetItem);
-          this.setData();
+    this._tasksList = this.container.querySelector(".tasks__list");
+    this._tasksList.addEventListener("mousedown", this.onMouseDown);
+    this.container.addEventListener("click", (e) => {
+      if (e.target.classList.contains("tasks__btn-remove")) {
+        const taskItem = e.target.closest(".tasks__item");
+        if (taskItem) {
+          this.removeItem(taskItem);
         }
       }
-
-      _tasksList.style.cursor = "default";
-      _targetItem.classList.remove("tasks__dragged");
-      _targetItem.style = "";
-      _elementTmp.remove();
-      _targetItem = undefined;
-
-      document.documentElement.removeEventListener("mouseup", onMouseUp);
-      document.documentElement.removeEventListener("mouseover", onMouseOver);
-    };
-
-    _tasksList.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-
-      if (!e.target.classList.contains("tasks__btn-remove")) {
-        _targetItem = e.target.closest(".tasks__item");
-        _targetItem.classList.add("tasks__dragged");
-        _tasksList.style.cursor = "grabbing";
-        _targetItem.style.width = _tasksList.offsetWidth + "px";
-
-        _elementTmp = document.createElement("div");
-        _elementTmp.classList.add("tasks__tmp");
-        _elementTmp.style.height = _targetItem.offsetHeight + "px";
-        _targetItem.insertAdjacentElement("afterend", _elementTmp);
-
-        document.documentElement.addEventListener("mouseup", onMouseUp);
-        document.documentElement.addEventListener("mouseover", onMouseOver);
-      }
     });
+  }
+
+  onMouseDown(e) {
+    e.preventDefault();
+
+    const targetItem = e.target.closest(".tasks__item");
+
+    if (!targetItem || e.target.classList.contains("tasks__btn-remove")) return;
+
+    this._targetItem = targetItem;
+    this._targetItem.classList.add("tasks__dragged");
+
+    this._tasksList.style.cursor = "grabbing";
+    this._targetItem.style.width = `${this._tasksList.offsetWidth}px`;
+
+    // Создаём временное место для сброса (placeholder)
+    this._elementTmp = document.createElement("div");
+    this._elementTmp.classList.add("tasks__tmp");
+    this._elementTmp.style.height = `${this._targetItem.offsetHeight}px`;
+
+    this._targetItem.after(this._elementTmp);
+
+    document.documentElement.addEventListener("mousemove", this.onMouseMove);
+    document.documentElement.addEventListener("mouseup", this.onMouseUp);
+  }
+
+  onMouseMove(e) {
+    if (!this._targetItem) return;
+
+    this._targetItem.style.position = "absolute";
+    this._targetItem.style.top = `${e.clientY}px`;
+    this._targetItem.style.left = `${e.clientX}px`;
+
+    // Определяем, над каким элементом сейчас находится курсор
+    const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
+    if (!elementBelow) return;
+
+    const closestItem = elementBelow.closest(".tasks__item");
+
+    // Меняем положение placeholder в зависимости от направления движения
+    if (closestItem && closestItem !== this._targetItem) {
+      const rect = closestItem.getBoundingClientRect();
+      const middleY = rect.top + rect.height / 2;
+
+      if (e.clientY < middleY) {
+        closestItem.before(this._elementTmp);
+      } else {
+        closestItem.after(this._elementTmp);
+      }
+    }
+  }
+
+  onMouseUp(e) {
+    if (!this._targetItem) return;
+
+    // Перемещаем карточку на место placeholder
+    this._elementTmp.replaceWith(this._targetItem);
+
+    this._tasksList.style.cursor = "default";
+    this._targetItem.classList.remove("tasks__dragged");
+    this._targetItem.style = "";
+
+    this._targetItem = null;
+    this._elementTmp = null;
+
+    this.setData();
+
+    document.documentElement.removeEventListener("mousemove", this.onMouseMove);
+    document.documentElement.removeEventListener("mouseup", this.onMouseUp);
+  }
+
+  removeItem(_item) {
+    if (confirm("Удалить задачу?")) {
+      const taskId = _item.dataset.id;
+      const data = getData(this.parentId);
+
+      const newData = data.filter(task => task.id != taskId);
+      const allData = getData();
+      allData[this.parentId] = newData;
+
+      setData(allData);
+      _item.remove();
+    }
   }
 
   setData() {
@@ -116,18 +158,5 @@ export default class WidgetList {
         <div class="tasks__item-text">${item.text}</div>
       </div>
     `;
-  }
-
-  clearList() {
-    const _title = this.container.querySelector(".tasks__block-title");
-    this.container.innerHTML = "";
-    this.container.appendChild(_title);
-  }
-
-  removeItem(_item) {
-    if (confirm("Удалить задачу?")) {
-      _item.remove();
-      this.setData();
-    }
   }
 }
