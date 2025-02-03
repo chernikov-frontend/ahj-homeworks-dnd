@@ -2,11 +2,12 @@ import WidgetForm from "./WidgetForm";
 import { getData, setData } from "./functions";
 
 export default class WidgetList {
-  constructor(container) {
+  constructor(container, title) {
     this.container = container;
     this.parentId = null;
     this._targetItem = null;
     this._elementTmp = null;
+    this.title = title;
 
     this.onMouseDown = this.onMouseDown.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
@@ -16,16 +17,26 @@ export default class WidgetList {
 
   init(id) {
     this.parentId = id;
-    this.container.innerHTML = ""; // Очищаем контейнер перед рендером
+    this.container.innerHTML = "";
+
+    const titleElement = document.createElement("h3");
+    titleElement.classList.add("tasks__block-title");
+    titleElement.textContent = this.title;
+
     const data = getData(id);
+
     const _element = this.render(data);
+
     const widgetForm = new WidgetForm(this.container, id);
 
-    this.container.append(_element);
+    this.container.append(titleElement, _element);
+
     widgetForm.init();
 
     this._tasksList = this.container.querySelector(".tasks__list");
+
     this._tasksList.addEventListener("mousedown", this.onMouseDown);
+
     this.container.addEventListener("click", (e) => {
       if (e.target.classList.contains("tasks__btn-remove")) {
         const taskItem = e.target.closest(".tasks__item");
@@ -49,7 +60,6 @@ export default class WidgetList {
     this._tasksList.style.cursor = "grabbing";
     this._targetItem.style.width = `${this._tasksList.offsetWidth}px`;
 
-    // Создаём временное место для сброса (placeholder)
     this._elementTmp = document.createElement("div");
     this._elementTmp.classList.add("tasks__tmp");
     this._elementTmp.style.height = `${this._targetItem.offsetHeight}px`;
@@ -67,13 +77,12 @@ export default class WidgetList {
     this._targetItem.style.top = `${e.clientY}px`;
     this._targetItem.style.left = `${e.clientX}px`;
 
-    // Определяем, над каким элементом сейчас находится курсор
     const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
     if (!elementBelow) return;
 
     const closestItem = elementBelow.closest(".tasks__item");
+    const closestList = elementBelow.closest(".tasks__list");
 
-    // Меняем положение placeholder в зависимости от направления движения
     if (closestItem && closestItem !== this._targetItem) {
       const rect = closestItem.getBoundingClientRect();
       const middleY = rect.top + rect.height / 2;
@@ -83,13 +92,15 @@ export default class WidgetList {
       } else {
         closestItem.after(this._elementTmp);
       }
+
+    } else if (closestList && !closestList.querySelector(".tasks__item")) {
+      closestList.append(this._elementTmp);
     }
   }
 
-  onMouseUp(e) {
+  onMouseUp() {
     if (!this._targetItem) return;
 
-    // Перемещаем карточку на место placeholder
     this._elementTmp.replaceWith(this._targetItem);
 
     this._tasksList.style.cursor = "default";
@@ -110,7 +121,8 @@ export default class WidgetList {
       const taskId = _item.dataset.id;
       const data = getData(this.parentId);
 
-      const newData = data.filter(task => task.id != taskId);
+      const newData = data.filter((task) => task.id !== taskId);
+
       const allData = getData();
       allData[this.parentId] = newData;
 
